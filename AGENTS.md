@@ -51,9 +51,17 @@ Tests and build must pass before pushing.
   `TerrainLayer.sync()` repaints only that rect. Out-of-bounds is air.
 - Water line `WATER_Y`: a fighter whose feet go below it drowns; a projectile
   below it splashes (no crater).
-- Camera: wide screens show the whole map; narrow screens zoom so ≥ 520 units
-  are visible and pan to the active fighter / projectile. Convert screen →
-  world only via `renderer.screenToWorld()`.
+- Camera: math in `src/core/camera.ts` (tested), state/modes in
+  `Renderer` (`cam`, `mode`). Zoom range is `[minScale = fit whole field,
+  maxScale = follow zoom]`; narrow screens use follow zoom ≥ 520 units across.
+  The canvas fills the stage height, so on tall screens the field sits at the
+  bottom with extra sky above. Modes: `follow` (auto), `manual` (player
+  panned/zoomed; back to follow on the `fire`/`turn` events), `overview`
+  (🗺 / M). Browsing is disabled when `fieldFits()` (2 % tolerance).
+  Convert screen → world only via `renderer.screenToWorld()`.
+- Input: 1 pointer = aim; 2 touch pointers = pan + pinch (restores the aim
+  the first finger made via `restoreAim`); right/middle mouse = pan; wheel =
+  zoom. Don't add single-finger panning – it would conflict with aiming.
 
 ## Turn state machine (`src/core/game.ts`)
 

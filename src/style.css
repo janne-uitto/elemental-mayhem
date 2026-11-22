@@ -115,18 +115,33 @@ canvas { display: block; image-rendering: pixelated; }
   .btn { min-height: 42px; font-size: 18px; }
 }
 
-/* Portrait phones: the map is zoomed and pans with the action; hint that landscape shows it all. */
-@media (orientation: portrait) and (max-width: 700px) {
-  .stage::before {
-    content: '↻ Rotate for the full battlefield';
-    position: absolute;
-    top: 10px;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-size: 12px;
-    color: var(--muted);
-    opacity: 0.7;
-    pointer-events: none;
-  }
+/* 🗺 whole-field toggle (only shown when the field doesn't fit). */
+.btn.map {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 8px;
+  font-size: 22px;
+  background: rgba(45, 35, 70, 0.85);
+  z-index: 2;
 }
+.btn.map.active { background: #ffb000; border-color: #8a5a00; }
+.btn.map.hidden { display: none; }
+.hint {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 80px);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(18, 13, 28, 0.75);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+.hint.hidden { opacity: 0; }

@@ -2,13 +2,25 @@
  * Draws a GameState onto the main canvas. The world is a fixed
  * WORLD_W × WORLD_H space scaled uniformly. On wide screens the whole map
  * fits; on narrow (portrait phone) screens the view is zoomed in and a camera
- * pans horizontally to follow the action (active fighter / fireball).
+ * follows the action – the player can also pan/zoom or toggle an overview.
  * Reads state only – never mutates gameplay (it drains g.events).
  */
 import { CHAR_H, MAX_HP, WATER_Y, WORLD_H, WORLD_W } from '../core/constants';
 import { muzzle, type Character, type Element } from '../core/character';
 import { activeChar, isHumanTurn, type GameState } from '../core/game';
 import { bodyCentre, launchVelocity, simulateShot } from '../core/physics';
+import {
+  clampCamera,
+  createCamera,
+  fieldFits,
+  panBy,
+  screenToWorld as camScreenToWorld,
+  setViewport,
+  viewH,
+  viewW,
+  zoomAt,
+  type Camera,
+} from '../core/camera';
 import { Effects } from './effects';
 import { TerrainLayer } from './terrainLayer';
 
@@ -25,13 +37,15 @@ export class Renderer {
   private terrainLayer: TerrainLayer | null = null;
   private terrainRef: unknown = null;
   private time = 0;
-  /** CSS pixels per world unit (set by resize). */
-  scale = 1;
-  /** Visible world size (units) and camera top-left (units). */
-  viewW = WORLD_W;
-  viewH = WORLD_H;
-  camX = 0;
-  camY = 0;
+  /**
+   * Camera (pure math in core/camera.ts). Modes:
+   *  - follow:   auto-pans to the active fighter / fireball at the follow zoom
+   *  - manual:   the player panned/zoomed; auto-follow pauses until the next
+   *              shot is fired or the turn changes
+   *  - overview: animated zoom-out to the whole field (🗺 button toggles)
+   */
+  readonly cam: Camera = createCamera(WORLD_W, WORLD_H, 1);
+  mode: 'follow' | 'manual' | 'overview' = 'follow';
   private camTargetX = 0;
   private clouds = Array.from({ length: 6 }, (_, i) => ({
     x: (i * WORLD_W) / 6 + Math.random() * 80,
@@ -44,39 +58,93 @@ export class Renderer {
     this.ctx = canvas.getContext('2d')!;
   }
 
+  // Convenience read-outs (also used by headless checks via window.__mayhem.renderer).
+  get scale(): number {
+    return this.cam.scale;
+  }
+  get camX(): number {
+    return this.cam.x;
+  }
+  get camY(): number {
+    return this.cam.y;
+  }
+  get viewW(): number {
+    return viewW(this.cam);
+  }
+  get viewH(): number {
+    return viewH(this.cam);
+  }
+
   /**
-   * Size the canvas for a CSS size and world scale (css px per unit).
-   * The visible world area is cssW/scale × cssH/scale.
+   * Size the canvas (CSS px) and set the follow zoom `maxScale` (css px per
+   * world unit). The fit-whole-field zoom is derived from the canvas size.
    */
-  resize(cssW: number, cssH: number, scale: number): void {
+  resize(cssW: number, cssH: number, maxScale: number): void {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.canvas.style.width = `${cssW}px`;
     this.canvas.style.height = `${cssH}px`;
     this.canvas.width = Math.round(cssW * dpr);
     this.canvas.height = Math.round(cssH * dpr);
-    this.scale = scale;
-    this.viewW = cssW / scale;
-    this.viewH = cssH / scale;
-    this.camX = this.clampCamX(this.camX);
-    this.camY = Math.max(0, WORLD_H - this.viewH);
+    const first = this.cam.viewportW === WORLD_W && this.cam.maxScale === 1;
+    setViewport(this.cam, cssW, cssH, maxScale);
+    if (first || this.mode === 'follow') this.cam.scale = maxScale;
+    if (fieldFits(this.cam)) this.mode = 'follow';
+    clampCamera(this.cam);
   }
 
-  /** Convert client (CSS) coordinates to world units, honouring the camera. */
+  /** Can the player browse (pan/zoom) at all? False when the whole field fits. */
+  canBrowse(): boolean {
+    return !fieldFits(this.cam);
+  }
+
+  /** Convert client (CSS) coordinates to world units, honouring zoom + camera. */
   screenToWorld(clientX: number, clientY: number): { x: number; y: number } {
     const r = this.canvas.getBoundingClientRect();
-    return { x: (clientX - r.left) / this.scale + this.camX, y: (clientY - r.top) / this.scale + this.camY };
+    return camScreenToWorld(this.cam, clientX - r.left, clientY - r.top);
   }
 
-  private clampCamX(x: number): number {
-    return Math.max(0, Math.min(WORLD_W - this.viewW, x));
+  /** Player drag-pan by a client-space delta (CSS px). */
+  userPan(dx: number, dy: number): void {
+    if (!this.canBrowse()) return;
+    this.mode = 'manual';
+    panBy(this.cam, dx, dy);
   }
 
-  /** Pan the camera toward what matters right now (no-op when the whole map fits). */
+  /** Player zoom by `factor` around a client point (pinch centre / mouse). */
+  userZoom(factor: number, clientX: number, clientY: number): void {
+    if (!this.canBrowse()) return;
+    this.mode = 'manual';
+    const r = this.canvas.getBoundingClientRect();
+    zoomAt(this.cam, this.cam.scale * factor, clientX - r.left, clientY - r.top);
+  }
+
+  /** 🗺 button: whole-field overview ↔ follow cam. */
+  toggleOverview(): void {
+    if (!this.canBrowse()) return;
+    this.mode = this.mode === 'overview' ? 'follow' : 'overview';
+  }
+
+  /** Drive the camera for the current mode (smoothly animated). */
   private updateCamera(g: GameState, dt: number): void {
-    if (this.viewW >= WORLD_W - 1) {
-      this.camX = 0;
+    const cam = this.cam;
+    if (fieldFits(cam)) {
+      cam.scale = cam.maxScale;
+      clampCamera(cam);
       return;
     }
+    if (this.mode === 'manual') return;
+    const a = Math.min(1, dt * (g.projectile ? 8 : 5));
+    if (this.mode === 'overview') {
+      cam.scale += (cam.minScale - cam.scale) * a;
+      if (Math.abs(cam.scale - cam.minScale) < 1e-4) cam.scale = cam.minScale;
+      const tx = (WORLD_W - viewW(cam)) / 2;
+      cam.x += (tx - cam.x) * a;
+      clampCamera(cam);
+      return;
+    }
+    // follow
+    cam.scale += (cam.maxScale - cam.scale) * a;
+    if (Math.abs(cam.scale - cam.maxScale) < 1e-4) cam.scale = cam.maxScale;
     const c = activeChar(g);
     let fx = this.camTargetX;
     if (g.projectile) fx = g.projectile.x;
@@ -85,11 +153,13 @@ export class Renderer {
       // (Independent of the aim so the view doesn't shift under a dragging finger.)
       const foe = g.chars.find((o) => o !== c && o.alive);
       const towardRight = foe ? foe.x >= c.x : true;
-      fx = c.x + (towardRight ? 1 : -1) * this.viewW * 0.28;
+      fx = c.x + (towardRight ? 1 : -1) * viewW(cam) * 0.28;
     }
     this.camTargetX = fx;
-    const target = this.clampCamX(fx - this.viewW / 2);
-    this.camX += (target - this.camX) * Math.min(1, dt * (g.projectile ? 8 : 4));
+    const w = viewW(cam);
+    const target = Math.max(0, Math.min(WORLD_W - w, fx - w / 2));
+    cam.x += (target - cam.x) * a;
+    clampCamera(cam);
   }
 
   /** Turn queued game events into particles/text, then draw everything. */
@@ -112,7 +182,7 @@ export class Renderer {
     this.updateCamera(g, dt);
 
     const ctx = this.ctx;
-    const k = this.canvas.width / this.viewW;
+    const k = this.canvas.width / viewW(this.cam);
     const sx = (Math.random() - 0.5) * this.effects.shake;
     const sy = (Math.random() - 0.5) * this.effects.shake;
     ctx.setTransform(k, 0, 0, k, (sx - this.camX) * k, (sy - this.camY) * k);
@@ -170,6 +240,9 @@ export class Renderer {
         this.trail = [];
       } else if (e.type === 'fire') {
         this.trail = [];
+        if (this.mode === 'manual') this.mode = 'follow'; // resume auto-follow
+      } else if (e.type === 'turn') {
+        if (this.mode === 'manual') this.mode = 'follow';
       }
     }
     g.events.length = 0;
@@ -181,7 +254,7 @@ export class Renderer {
     grd.addColorStop(0.55, '#5b3a77');
     grd.addColorStop(1, '#f08a5d');
     ctx.fillStyle = grd;
-    ctx.fillRect(-40, -400, WORLD_W + 80, WORLD_H + 440);
+    ctx.fillRect(-200, -3000, WORLD_W + 400, WORLD_H + 3040);
     // Distant mountains (parallax-free silhouette).
     ctx.fillStyle = '#3a2856';
     ctx.beginPath();

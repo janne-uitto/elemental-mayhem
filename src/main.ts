@@ -29,6 +29,8 @@ app.innerHTML = `
   </header>
   <main class="stage" id="stage">
     <canvas id="canvas" aria-label="Battlefield"></canvas>
+    <button class="btn map hidden" id="btn-map" aria-label="Show whole field" title="Whole field (M)">🗺</button>
+    <div class="hint hidden" id="hint"></div>
     <div class="overlay hidden" id="overlay">
       <div class="panel">
         <h2 id="overlay-title"></h2>
@@ -76,13 +78,52 @@ const hud: HudElements = {
   overlayText: $('overlay-text'),
 };
 
-bindControls(() => game, { stage, toWorld: (x, y) => renderer.screenToWorld(x, y), left: hud.left, right: hud.right, fire: hud.fire }, restart);
+const mapBtn = $<HTMLButtonElement>('btn-map');
+const hint = $('hint');
+bindControls(
+  () => game,
+  {
+    stage,
+    view: renderer,
+    left: hud.left,
+    right: hud.right,
+    fire: hud.fire,
+    onGesture: () => dismissHint(),
+  },
+  restart,
+);
+mapBtn.addEventListener('click', () => {
+  renderer.toggleOverview();
+  dismissHint();
+});
+
+/** Show the 🗺 button only when the field doesn't fit; one-time browse hint. */
+const HINT_KEY = 'mayhem.browseHintSeen';
+let hintTimer = 0;
+function updateBrowseUi(): void {
+  const browse = renderer.canBrowse();
+  mapBtn.classList.toggle('hidden', !browse);
+  if (browse && !localStorage.getItem(HINT_KEY) && hint.classList.contains('hidden') && !hintTimer) {
+    const touch = matchMedia('(pointer: coarse)').matches;
+    hint.textContent = touch
+      ? 'Two fingers to look around · 🗺 whole field'
+      : 'Wheel to zoom · right-drag to pan · 🗺 whole field';
+    hint.classList.remove('hidden');
+    hintTimer = window.setTimeout(dismissHint, 6000);
+  }
+}
+function dismissHint(): void {
+  if (hint.classList.contains('hidden')) return;
+  hint.classList.add('hidden');
+  localStorage.setItem(HINT_KEY, '1');
+}
 $('restart').addEventListener('click', restart);
 
 /**
  * Fit the canvas into the stage. Wide stages show the whole map (letterboxed).
  * Narrow / portrait stages zoom in so at least MIN_VIEW_W world units are
- * visible across, and the renderer's camera pans to follow the action.
+ * visible across; the camera follows the action and the player can browse
+ * the whole field (two-finger pan/pinch, wheel, right-drag, 🗺 overview).
  */
 const MIN_VIEW_W = 520;
 function fit(): void {
@@ -90,9 +131,10 @@ function fit(): void {
   const fitScale = Math.min(r.width / WORLD_W, r.height / WORLD_H);
   const zoomScale = Math.min(r.width / MIN_VIEW_W, r.height / WORLD_H);
   const scale = Math.max(fitScale, zoomScale);
+  // Full stage height: on tall screens the extra room shows sky above the field.
   const w = Math.min(r.width, WORLD_W * scale);
-  const h = Math.min(r.height, WORLD_H * scale);
-  renderer.resize(Math.floor(w), Math.floor(h), scale);
+  renderer.resize(Math.floor(w), Math.floor(r.height), scale);
+  updateBrowseUi();
 }
 new ResizeObserver(fit).observe(stage);
 window.addEventListener('orientationchange', () => setTimeout(fit, 200));
@@ -105,6 +147,7 @@ function loop(now: number): void {
   update(game, dt);
   renderer.frame(game, dt);
   updateHud(game, hud);
+  mapBtn.classList.toggle('active', renderer.mode === 'overview');
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

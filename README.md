@@ -17,6 +17,8 @@ You are **Ember** 🔥 (left). Your opponent is **Tide** 💧 (right).
 | Walk (limited per turn – green bar) | hold **◀ / ▶** | ← / → or A / D |
 | Aim | tap or drag on the battlefield – direction from Ember = angle, distance = power | ↑ / ↓ angle, W / S power |
 | Shoot | **FIRE** | Space / Enter |
+| Look around (when the field doesn't fit) | two-finger drag = pan, pinch = zoom | mouse wheel = zoom, right/middle-drag = pan |
+| Whole-field overview on/off | **🗺** button (top-right) | M |
 | Restart after a battle | **Play again** | R |
 
 - A dotted line previews the first part of the trajectory (wind included).
@@ -25,8 +27,11 @@ You are **Ember** 🔥 (left). Your opponent is **Tide** 💧 (right).
   falling off with distance) and knocks fighters back. Big falls hurt.
 - Falling into the **water** is an instant KO.
 - Reduce the opponent to 0 HP to win.
-- On a portrait phone the view is zoomed in and follows the action; rotate to
-  landscape to see the whole map.
+- On a portrait phone the view is zoomed in and follows the action. Browse
+  the field with two fingers or tap 🗺 for the whole field. Once you pan,
+  auto-follow pauses until you fire or the turn changes. One finger always aims
+  (adding a second finger cancels that aim). Arrows at the screen edge point
+  to fighters out of view.
 
 ## Run locally
 
@@ -59,6 +64,7 @@ src/
     character.ts     Fighters: walking, step-climbing, falling, fall damage, drowning
     ai.ts            AI shot planner (grid search + tunable inaccuracy)
     game.ts          Game state + turn state machine, explosions, win check
+    camera.ts        Camera math: zoom range, clamping, pan, zoom-at, screen↔world
   render/          Canvas drawing (reads state, never changes gameplay)
     renderer.ts      Sky, terrain, fighters, aim preview, projectile, camera
     terrainLayer.ts  Mask → pixels, repaints only the dirty rect after a crater
@@ -108,21 +114,24 @@ Implemented:
 - Turn system: player → AI. The AI grid-searches a shot and adds error that
   shrinks each turn, so it starts sloppy and zeroes in.
 - Win/lose/draw overlay and restart.
-- Responsive layout: phone portrait (zoomed, panning camera), phone landscape
+- Responsive layout: phone portrait (zoomed, follow camera), phone landscape
   and desktop (whole map), no page scroll.
+- Field browsing when it doesn't fit: two-finger pan / pinch zoom, wheel +
+  right-drag on desktop, 🗺 whole-field overview toggle, one-time hint.
 
 Known limitations:
 - Single map (random seed per battle, same generator); no map select.
 - One weapon; no weapon selection UI yet.
 - AI never walks; it only aims.
-- No sound, no turn timer, no camera drag/zoom by the player.
+- No sound, no turn timer.
+- Zoom only goes between "whole field" and the normal follow zoom (no
+  zooming in closer); on wide screens the field always fits, so browsing is off.
 - Floating debris isn't simulated – terrain stays where it is after a blast.
 - Partial preview always shown (no difficulty settings).
 
 ## Roadmap
 
-1. **Feel pass:** sounds, hit-stop, better explosions, camera drag/pinch zoom,
-   turn timer.
+1. **Feel pass:** sounds, hit-stop, better explosions, turn timer.
 2. **Weapons:** weapon picker; one weapon per element (fireball, water bomb,
    gust, boulder); earth weapon that *adds* terrain.
 3. **Teams:** 2–4 fighters per side, choose your element, AI that walks and

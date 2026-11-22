@@ -141,6 +141,13 @@ export function setAim(g: GameState, angle: number, power: number): void {
   c.facing = Math.cos(angle) >= 0 ? 1 : -1;
 }
 
+/** Put back an earlier aim (used when a touch turns out to be a pan/pinch gesture). */
+export function restoreAim(g: GameState, aim: { angle: number; power: number; set: boolean }): void {
+  if (!isHumanTurn(g)) return;
+  g.aims[activeChar(g).id] = { angle: aim.angle, power: aim.power };
+  g.aimSet = aim.set;
+}
+
 export function setMove(g: GameState, dir: -1 | 0 | 1): void {
   g.moveDir = isHumanTurn(g) ? dir : 0;
 }
