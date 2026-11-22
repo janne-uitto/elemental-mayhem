@@ -1,17 +1,21 @@
 /**
  * Input → game actions. Touch-first (Pointer Events cover mouse, touch, pen).
  *
- *  - Tap / drag anywhere on the battlefield: aim. Direction from your
- *    character = angle, distance = power (AIM_FULL_POWER_DIST = 100 %).
+ *  - Aim pad (bottom bar, all devices): drag the knob – direction from the pad
+ *    centre = angle, distance = power. Releasing keeps the aim.
+ *  - Mouse/pen click or drag on the battlefield: aim (direction from your
+ *    character = angle, distance = power; AIM_FULL_POWER_DIST = 100 %).
+ *  - Touch on the battlefield: one-finger drag pans (never aims – the finger
+ *    would hide the target).
  *  - Hold ◀ / ▶ buttons: walk (limited distance per turn).
  *  - FIRE button: shoot the current aim.
  *  - Two-finger drag: pan, pinch: zoom (only when the field doesn't fit).
- *    A second finger cancels the aim the first finger just made.
  *  - Mouse: wheel zoom, right- or middle-drag pan.
  *  - Keyboard: ←/→ or A/D walk, ↑/↓ angle, W/S power, Space/Enter fire,
  *    M whole-field overview, R restart.
  */
 import { activeChar, fire, isHumanTurn, restoreAim, setAim, setMove, type GameState } from '../core/game';
+import { padToAim } from '../core/aimpad';
 import { aimFromPoint, bodyCentre } from '../core/physics';
 
 /** What the input layer needs from the view (implemented by Renderer). */
@@ -29,6 +33,8 @@ export interface ControlElements {
   left: HTMLButtonElement;
   right: HTMLButtonElement;
   fire: HTMLButtonElement;
+  /** Aim pad element (circle); its centre/radius define the joystick. */
+  pad: HTMLElement;
   /** Called when the player first pans/zooms (e.g. to dismiss a hint). */
   onGesture?: () => void;
 }
@@ -37,7 +43,7 @@ export function bindControls(getGame: () => GameState, el: ControlElements, onRe
   // ---- stage pointers: 1 finger / left mouse = aim; 2 fingers = pan + pinch;
   //      right/middle mouse drag = pan; wheel = zoom.
   const pointers = new Map<number, { x: number; y: number }>();
-  let mode: 'none' | 'aim' | 'gesture' | 'mousepan' = 'none';
+  let mode: 'none' | 'aim' | 'gesture' | 'mousepan' | 'touchpan' = 'none';
   /** Aim before the current touch started – restored if it turns into a 2-finger gesture. */
   let aimBefore: { angle: number; power: number; set: boolean } | null = null;
   let last = { cx: 0, cy: 0, dist: 0 };
@@ -65,7 +71,12 @@ export function bindControls(getGame: () => GameState, el: ControlElements, onRe
       el.onGesture?.();
       return;
     }
-    if (pointers.size === 1) {
+    if (pointers.size === 1 && ev.pointerType === 'touch') {
+      // Touch: one finger browses the field (aiming is on the pad, so the
+      // finger never covers the target).
+      mode = 'touchpan';
+      last = { cx: ev.clientX, cy: ev.clientY, dist: 0 };
+    } else if (pointers.size === 1) {
       const g = getGame();
       const c = activeChar(g);
       aimBefore = { ...g.aims[c.id], set: g.aimSet };
@@ -74,6 +85,7 @@ export function bindControls(getGame: () => GameState, el: ControlElements, onRe
     } else if (pointers.size === 2) {
       // Second finger: this is a look-around gesture, undo the accidental aim.
       if (mode === 'aim' && aimBefore) restoreAim(getGame(), aimBefore);
+      if (mode === 'touchpan') el.onGesture?.();
       mode = 'gesture';
       last = twoFinger();
       el.onGesture?.();
@@ -83,7 +95,8 @@ export function bindControls(getGame: () => GameState, el: ControlElements, onRe
     if (!pointers.has(ev.pointerId)) return;
     pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     if (mode === 'aim') aimAt(ev.clientX, ev.clientY);
-    else if (mode === 'mousepan') {
+    else if (mode === 'mousepan' || mode === 'touchpan') {
+      if (mode === 'touchpan' && (Math.abs(ev.clientX - last.cx) > 0 || Math.abs(ev.clientY - last.cy) > 0)) el.onGesture?.();
       el.view.userPan(ev.clientX - last.cx, ev.clientY - last.cy);
       last = { cx: ev.clientX, cy: ev.clientY, dist: 0 };
     } else if (mode === 'gesture' && pointers.size >= 2) {
@@ -112,6 +125,37 @@ export function bindControls(getGame: () => GameState, el: ControlElements, onRe
     },
     { passive: false },
   );
+
+  // ---- aim pad (virtual joystick): knob offset from centre → angle + power.
+  //      Pointer capture keeps the drag alive outside the pad; releasing keeps the aim.
+  let padPointer: number | null = null;
+  const padAim = (ev: PointerEvent) => {
+    const g = getGame();
+    if (!isHumanTurn(g)) return;
+    const r = el.pad.getBoundingClientRect();
+    const radius = r.width / 2;
+    const { angle, power } = padToAim(ev.clientX - (r.left + radius), ev.clientY - (r.top + r.height / 2), radius);
+    setAim(g, angle, power);
+  };
+  el.pad.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    if (padPointer !== null) return;
+    padPointer = ev.pointerId;
+    el.pad.setPointerCapture(ev.pointerId);
+    el.pad.classList.add('dragging');
+    padAim(ev);
+  });
+  el.pad.addEventListener('pointermove', (ev) => {
+    if (ev.pointerId === padPointer) padAim(ev);
+  });
+  const padUp = (ev: PointerEvent) => {
+    if (ev.pointerId !== padPointer) return;
+    padPointer = null;
+    el.pad.classList.remove('dragging');
+  };
+  el.pad.addEventListener('pointerup', padUp);
+  el.pad.addEventListener('pointercancel', padUp);
+  el.pad.addEventListener('lostpointercapture', padUp);
 
   // ---- hold-to-walk buttons
   const hold = (btn: HTMLButtonElement, dir: -1 | 1) => {

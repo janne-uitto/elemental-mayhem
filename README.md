@@ -15,9 +15,9 @@ You are **Ember** 🔥 (left). Your opponent is **Tide** 💧 (right).
 | Action | Touch / mouse | Keyboard |
 |---|---|---|
 | Walk (limited per turn – green bar) | hold **◀ / ▶** | ← / → or A / D |
-| Aim | tap or drag on the battlefield – direction from Ember = angle, distance = power | ↑ / ↓ angle, W / S power |
+| Aim | drag the **aim pad** (bottom centre): knob direction = angle, distance from centre = power; release keeps the aim. Mouse: the pad, or click/drag on the battlefield | ↑ / ↓ angle, W / S power |
 | Shoot | **FIRE** | Space / Enter |
-| Look around (when the field doesn't fit) | two-finger drag = pan, pinch = zoom | mouse wheel = zoom, right/middle-drag = pan |
+| Look around (when the field doesn't fit) | one- or two-finger drag = pan, pinch = zoom | mouse wheel = zoom, right/middle-drag = pan |
 | Whole-field overview on/off | **🗺** button (top-right) | M |
 | Restart after a battle | **Play again** | R |
 
@@ -28,10 +28,11 @@ You are **Ember** 🔥 (left). Your opponent is **Tide** 💧 (right).
 - Falling into the **water** is an instant KO.
 - Reduce the opponent to 0 HP to win.
 - On a portrait phone the view is zoomed in and follows the action. Browse
-  the field with two fingers or tap 🗺 for the whole field. Once you pan,
-  auto-follow pauses until you fire or the turn changes. One finger always aims
-  (adding a second finger cancels that aim). Arrows at the screen edge point
-  to fighters out of view.
+  the field by dragging it or tap 🗺 for the whole field. Once you pan,
+  auto-follow pauses until you fire or the turn changes. On touch screens the
+  field never aims (your finger would hide the target) – use the aim pad.
+  Arrows at the screen edge point to fighters out of view.
+- The angle/power readout is shown next to the pad and beside your fighter.
 
 ## Run locally
 
@@ -64,6 +65,7 @@ src/
     character.ts     Fighters: walking, step-climbing, falling, fall damage, drowning
     ai.ts            AI shot planner (grid search + tunable inaccuracy)
     game.ts          Game state + turn state machine, explosions, win check
+    aimpad.ts        Aim pad vector ↔ angle/power mapping
     camera.ts        Camera math: zoom range, clamping, pan, zoom-at, screen↔world
   render/          Canvas drawing (reads state, never changes gameplay)
     renderer.ts      Sky, terrain, fighters, aim preview, projectile, camera
@@ -107,8 +109,9 @@ Implemented:
   platforms, water on both sides) with pixel-precise destructible terrain.
 - One fighter per side; walking with slope/step climbing, gravity, knockback,
   fall damage, drowning.
-- Tap/drag aiming with angle + power readout and a partial trajectory preview;
-  separate FIRE button.
+- Aim pad (virtual joystick) between the move buttons and FIRE, angle + power
+  readout, partial trajectory preview; mouse can also aim on the field;
+  separate FIRE button (disabled until aimed).
 - Projectile physics (gravity + wind), fireball with crater, splash damage,
   knockback, particles and screen shake.
 - Turn system: player → AI. The AI grid-searches a shot and adds error that
@@ -116,7 +119,7 @@ Implemented:
 - Win/lose/draw overlay and restart.
 - Responsive layout: phone portrait (zoomed, follow camera), phone landscape
   and desktop (whole map), no page scroll.
-- Field browsing when it doesn't fit: two-finger pan / pinch zoom, wheel +
+- Field browsing when it doesn't fit: one/two-finger pan, pinch zoom, wheel +
   right-drag on desktop, 🗺 whole-field overview toggle, one-time hint.
 
 Known limitations:

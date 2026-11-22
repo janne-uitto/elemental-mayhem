@@ -66,9 +66,11 @@ body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit
 canvas { display: block; image-rendering: pixelated; }
 
 .controls {
+  --pad: 92px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
   padding: 8px 10px;
   background: var(--panel);
   border-top: 2px solid var(--line);
@@ -82,20 +84,71 @@ canvas { display: block; image-rendering: pixelated; }
   border-bottom-width: 4px;
   border-radius: 8px;
   min-height: 52px;
-  min-width: 60px;
-  padding: 0 14px;
+  min-width: 56px;
+  padding: 0 12px;
   font-size: 20px;
   cursor: pointer;
   touch-action: none;
 }
 .btn:active, .btn.held { transform: translateY(2px); border-bottom-width: 2px; background: #3a2f5c; }
 .btn:disabled { opacity: 0.4; cursor: default; }
-.btn.fire { margin-left: auto; min-width: 96px; background: linear-gradient(#ff8a3d, #d9480f); border-color: #8a2c06; letter-spacing: 1px; }
+.btn.fire { min-width: 92px; min-height: 60px; background: linear-gradient(#ff8a3d, #d9480f); border-color: #8a2c06; letter-spacing: 1px; }
 .btn.primary { background: linear-gradient(#ff8a3d, #d9480f); border-color: #8a2c06; }
-.info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; align-items: stretch; }
+
+/* Movement: ◀ ▶ with the per-turn walk meter underneath. */
+.movegroup { display: flex; flex-direction: column; gap: 6px; }
+.movebtns { display: flex; gap: 6px; }
 .meter { height: 8px; background: #0b0812; border: 1px solid var(--line); }
 .meter .fill { height: 100%; background: #a3e635; }
-.aim { font-size: 13px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Aim pad (virtual joystick) in the middle of the bar. */
+.padwrap { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.pad {
+  position: relative;
+  width: var(--pad);
+  height: var(--pad);
+  flex: none;
+  border-radius: 50%;
+  background: radial-gradient(circle, #2d2346 0 30%, #221a38 31% 100%);
+  border: 2px solid var(--line);
+  box-shadow: inset 0 0 0 1px rgba(255, 210, 122, 0.15);
+  touch-action: none;
+  cursor: grab;
+}
+.pad::before, .pad::after { /* crosshair guides */
+  content: '';
+  position: absolute;
+  background: rgba(185, 173, 208, 0.18);
+}
+.pad::before { left: 50%; top: 6px; bottom: 6px; width: 1px; }
+.pad::after { top: 50%; left: 6px; right: 6px; height: 1px; }
+.pad.dragging { cursor: grabbing; border-color: #ffb000; }
+.pad.disabled { opacity: 0.45; }
+.pad-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+  width: 0;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(255, 210, 122, 0.2), #ff7a2f);
+  pointer-events: none;
+}
+.knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffd27a, #ff7a2f 60%, #c2410c);
+  border: 2px solid #8a2c06;
+  pointer-events: none;
+}
+.pad:not(.set) .knob { background: radial-gradient(circle at 35% 35%, #8c80a8, #4b3f66); border-color: var(--line); }
+.aim { font-size: 12px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(10, 6, 18, 0.6); }
 .overlay.hidden { display: none; }
@@ -103,16 +156,26 @@ canvas { display: block; image-rendering: pixelated; }
 .panel h2 { margin: 0 0 6px; font-size: 28px; }
 .panel p { margin: 0 0 16px; color: var(--muted); }
 
-/* Small phones: compact HUD. */
+/* Small phones: compact HUD + bar. */
 @media (max-width: 480px) {
   .hud { font-size: 12px; padding: 4px 6px; gap: 4px; }
   .fighter .name { display: none; }
+  .controls { gap: 6px; padding: 8px; }
+  .btn.move { min-width: 50px; padding: 0 8px; }
+  .btn.fire { min-width: 84px; }
 }
-/* Short landscape phones: shrink chrome so the battlefield gets the height. */
+/* Short landscape phones: shrink chrome so the battlefield gets the height.
+   The readout sits beside the pad instead of under it. */
 @media (max-height: 460px) {
   .hud { padding: 2px 8px; font-size: 12px; }
-  .controls { padding: 4px 8px; }
+  .controls { --pad: 64px; padding: 4px 10px; }
   .btn { min-height: 42px; font-size: 18px; }
+  .btn.fire { min-height: 48px; }
+  .movegroup { gap: 4px; }
+  .padwrap { flex-direction: row; justify-content: center; gap: 10px; }
+  /* Fixed width so changing readout text never shifts the pad under the thumb. */
+  .padwrap .aim { width: 96px; flex: none; }
+  .knob { width: 24px; height: 24px; margin: -12px 0 0 -12px; }
 }
 
 /* 🗺 whole-field toggle (only shown when the field doesn't fit). */
@@ -145,3 +208,9 @@ canvas { display: block; image-rendering: pixelated; }
   transition: opacity 0.4s;
 }
 .hint.hidden { opacity: 0; }
+
+/* Wide screens: readout beside the pad keeps the bar shorter (more field). */
+@media (min-width: 700px) {
+  .padwrap { flex-direction: row; justify-content: center; gap: 12px; }
+  .padwrap .aim { width: 96px; flex: none; text-align: left; }
+}

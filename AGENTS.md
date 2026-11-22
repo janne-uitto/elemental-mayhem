@@ -59,9 +59,18 @@ Tests and build must pass before pushing.
   panned/zoomed; back to follow on the `fire`/`turn` events), `overview`
   (🗺 / M). Browsing is disabled when `fieldFits()` (2 % tolerance).
   Convert screen → world only via `renderer.screenToWorld()`.
-- Input: 1 pointer = aim; 2 touch pointers = pan + pinch (restores the aim
-  the first finger made via `restoreAim`); right/middle mouse = pan; wheel =
-  zoom. Don't add single-finger panning – it would conflict with aiming.
+- Input (`src/input/controls.ts`):
+  - **Aim pad** (all devices): knob offset from the pad centre → `padToAim()`
+    in `src/core/aimpad.ts` (direction = angle, distance/radius = power).
+    Pointer capture keeps drags alive outside the pad; release keeps the aim.
+    The HUD positions the knob from `g.aims` via `aimToPad()`, so mouse and
+    keyboard aiming show on the pad too.
+  - **Touch on the field never aims** (finger occlusion): 1 finger = pan,
+    2 fingers = pan + pinch.
+  - **Mouse/pen** on the field: left click/drag = aim (as before),
+    right/middle drag = pan, wheel = zoom.
+  - Keep the readout's width fixed in row layouts – if it changes width the
+    pad shifts under the thumb mid-drag.
 
 ## Turn state machine (`src/core/game.ts`)
 

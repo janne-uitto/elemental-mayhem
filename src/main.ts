@@ -40,10 +40,18 @@ app.innerHTML = `
     </div>
   </main>
   <footer class="controls">
-    <button class="btn move" id="btn-left" aria-label="Move left">◀</button>
-    <button class="btn move" id="btn-right" aria-label="Move right">▶</button>
-    <div class="info">
+    <div class="movegroup">
+      <div class="movebtns">
+        <button class="btn move" id="btn-left" aria-label="Move left">◀</button>
+        <button class="btn move" id="btn-right" aria-label="Move right">▶</button>
+      </div>
       <div class="meter" title="Movement left this turn"><div class="fill" id="move"></div></div>
+    </div>
+    <div class="padwrap">
+      <div class="pad" id="pad" role="slider" aria-label="Aim pad: drag – direction is angle, distance is power">
+        <div class="pad-line" id="pad-line"></div>
+        <div class="knob" id="knob"></div>
+      </div>
       <div class="aim" id="aim"></div>
     </div>
     <button class="btn fire" id="btn-fire">FIRE</button>
@@ -70,6 +78,9 @@ const hud: HudElements = {
   windArrow: $('wind-arrow'),
   move: $('move'),
   aim: $('aim'),
+  pad: $('pad'),
+  knob: $('knob'),
+  padLine: $('pad-line'),
   left: $<HTMLButtonElement>('btn-left'),
   right: $<HTMLButtonElement>('btn-right'),
   fire: $<HTMLButtonElement>('btn-fire'),
@@ -88,6 +99,7 @@ bindControls(
     left: hud.left,
     right: hud.right,
     fire: hud.fire,
+    pad: hud.pad,
     onGesture: () => dismissHint(),
   },
   restart,
@@ -106,7 +118,7 @@ function updateBrowseUi(): void {
   if (browse && !localStorage.getItem(HINT_KEY) && hint.classList.contains('hidden') && !hintTimer) {
     const touch = matchMedia('(pointer: coarse)').matches;
     hint.textContent = touch
-      ? 'Two fingers to look around · 🗺 whole field'
+      ? 'Drag to look around · pinch to zoom · 🗺 whole field'
       : 'Wheel to zoom · right-drag to pan · 🗺 whole field';
     hint.classList.remove('hidden');
     hintTimer = window.setTimeout(dismissHint, 6000);

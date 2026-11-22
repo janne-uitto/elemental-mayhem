@@ -384,6 +384,16 @@ export class Renderer {
     ctx.lineWidth = 2;
     ctx.strokeRect(Math.round(cx) - 4, Math.round(cy) - 4, 8, 8);
     if (g.phase !== 'aim') return;
+    // Angle/power label beside the fighter (readable while thumb is on the pad).
+    const label = `${Math.round((-aim.angle * 180) / Math.PI)}° ${Math.round(aim.power * 100)}%`;
+    const lx = centre.x + (Math.cos(aim.angle) >= 0 ? -1 : 1) * 16;
+    ctx.font = 'bold 11px system-ui, sans-serif';
+    ctx.textAlign = Math.cos(aim.angle) >= 0 ? 'right' : 'left';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#120d1c';
+    ctx.strokeText(label, lx, centre.y + 4);
+    ctx.fillStyle = '#ffe9a8';
+    ctx.fillText(label, lx, centre.y + 4);
     // Preview only the first ~40 % of flight so aiming still needs judgement.
     const { path } = simulateShot(g.terrain, muzzle(c, aim.angle), launchVelocity(aim.angle, aim.power), g.wind, {
       samplePath: true,
