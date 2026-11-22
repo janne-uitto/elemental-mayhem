@@ -4,7 +4,7 @@ Turn-based elemental artillery battles in the browser – think *Worms*, but the
 combatants are elemental spirits (Fire, Air, Earth, Water) slinging elemental
 attacks across destructible terrain.
 
-**Play:** https://elemental-mayhem.vercel.app (auto-deploys from `main`)
+**Play:** https://elemental-mayhem.vercel.app (Vercel, auto-deploys from `main`) · **Repo:** https://github.com/janne-uitto/elemental-mayhem
 
 > Status: **first playable prototype (v0.1)** – one map, one weapon, you vs. an AI.
 
